@@ -1,12 +1,16 @@
 import AppKit
+import CoreImage
 import CoreGraphics
 import ImageIO
+import Vision
 
 public enum IconImageError: Error, LocalizedError {
     case invalidScale
     case unreadableImage
     case emptyImage
     case cannotRender
+    case noForeground
+    case backgroundRemovalFailed
 
     public var errorDescription: String? {
         switch self {
@@ -14,6 +18,8 @@ public enum IconImageError: Error, LocalizedError {
         case .unreadableImage: "无法读取图片。"
         case .emptyImage: "图片没有可见内容。"
         case .cannotRender: "无法生成文件夹图标。"
+        case .noForeground: "没有识别到可抠出的主体，请关闭“移除背景”或换一张图片。"
+        case .backgroundRemovalFailed: "移除背景失败，请换一张图片或关闭“移除背景”。"
         }
     }
 }
@@ -25,16 +31,21 @@ public struct IconImageProcessor {
 
     public init() {}
 
-    public func makeIcon(from imageURL: URL, contentScale: Double = defaultContentScale) throws -> NSImage {
+    public func makeIcon(
+        from imageURL: URL,
+        contentScale: Double = defaultContentScale,
+        removingBackground: Bool = false
+    ) throws -> NSImage {
         guard (0.1...1.0).contains(contentScale) else { throw IconImageError.invalidScale }
         guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
-              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+              let decodedImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: 2048,
               ] as CFDictionary) else {
             throw IconImageError.unreadableImage
         }
+        let image = removingBackground ? try removeBackground(from: decodedImage) : decodedImage
 
         let size = Self.canvasSize
         let bytesPerRow = size * 4
@@ -91,5 +102,35 @@ public struct IconImageProcessor {
         outputContext.draw(fittedImage, in: drawRect)
         guard let output = outputContext.makeImage() else { throw IconImageError.cannotRender }
         return NSImage(cgImage: output, size: NSSize(width: size, height: size))
+    }
+
+    private func removeBackground(from image: CGImage) throws -> CGImage {
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: image)
+        do {
+            try handler.perform([request])
+            guard let observation = request.results?.first, !observation.allInstances.isEmpty else {
+                throw IconImageError.noForeground
+            }
+            let maskBuffer = try observation.generateScaledMaskForImage(
+                forInstances: observation.allInstances,
+                from: handler
+            )
+            let source = CIImage(cgImage: image)
+            let transparent = CIImage(color: .clear).cropped(to: source.extent)
+            let filter = CIFilter(name: "CIBlendWithMask")
+            filter?.setValue(source, forKey: kCIInputImageKey)
+            filter?.setValue(transparent, forKey: kCIInputBackgroundImageKey)
+            filter?.setValue(CIImage(cvPixelBuffer: maskBuffer), forKey: kCIInputMaskImageKey)
+            guard let output = filter?.outputImage,
+                  let result = CIContext().createCGImage(output, from: source.extent) else {
+                throw IconImageError.backgroundRemovalFailed
+            }
+            return result
+        } catch let error as IconImageError {
+            throw error
+        } catch {
+            throw IconImageError.backgroundRemovalFailed
+        }
     }
 }

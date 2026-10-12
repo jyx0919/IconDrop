@@ -3,6 +3,32 @@ import XCTest
 @testable import IconDropCore
 
 final class IconDropCoreTests: XCTestCase {
+    func testBackgroundRemovalMakesBackdropTransparentButKeepsSubject() throws {
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        let imageURL = temporary.appendingPathComponent("subject.png")
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: 512, height: 512, bitsPerComponent: 8,
+            bytesPerRow: 512 * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 512, height: 512))
+        context.setFillColor(NSColor.systemRed.cgColor)
+        context.fillEllipse(in: CGRect(x: 108, y: 108, width: 296, height: 296))
+        let png = try XCTUnwrap(NSBitmapImageRep(cgImage: XCTUnwrap(context.makeImage())).representation(using: .png, properties: [:]))
+        try png.write(to: imageURL)
+
+        let processor = IconImageProcessor()
+        let original = try processor.makeIcon(from: imageURL)
+        let removed = try processor.makeIcon(from: imageURL, removingBackground: true)
+        XCTAssertGreaterThan(try alpha(at: CGPoint(x: 100, y: 100), in: original), 0.9)
+        XCTAssertLessThan(try alpha(at: CGPoint(x: 100, y: 100), in: removed), 0.1)
+        XCTAssertGreaterThan(try alpha(at: CGPoint(x: 256, y: 256), in: removed), 0.9)
+    }
+
     func testVisibleContentHasConsistentSizeAcrossSourceImages() throws {
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
@@ -149,6 +175,11 @@ final class IconDropCoreTests: XCTestCase {
             }
         }
         return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }
+
+    private func alpha(at point: CGPoint, in image: NSImage) throws -> CGFloat {
+        let cgImage = try XCTUnwrap(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        return try XCTUnwrap(NSBitmapImageRep(cgImage: cgImage).colorAt(x: Int(point.x), y: Int(point.y))).alphaComponent
     }
 }
 

@@ -3,10 +3,12 @@ import AppKit
 public struct IconAssignment {
     public let imageURL: URL
     public let folderURLs: [URL]
+    public let removeBackground: Bool
 
-    public init(imageURL: URL, folderURLs: [URL]) {
+    public init(imageURL: URL, folderURLs: [URL], removeBackground: Bool = false) {
         self.imageURL = imageURL
         self.folderURLs = folderURLs
+        self.removeBackground = removeBackground
     }
 }
 
@@ -69,7 +71,13 @@ public struct FolderIconService {
         var results: [FolderIconResult] = []
 
         for assignment in assignments {
-            let icon = Result { try processor.makeIcon(from: assignment.imageURL, contentScale: contentScale) }
+            let icon = Result {
+                try processor.makeIcon(
+                    from: assignment.imageURL,
+                    contentScale: contentScale,
+                    removingBackground: assignment.removeBackground
+                )
+            }
             for folder in assignment.folderURLs {
                 let normalizedFolder = folder.standardizedFileURL.resolvingSymlinksInPath()
                 let error: Error?
