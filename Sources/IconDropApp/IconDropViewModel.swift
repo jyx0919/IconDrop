@@ -32,6 +32,10 @@ final class IconDropViewModel: ObservableObject {
     var folderCount: Int { queue.reduce(0) { $0 + $1.folderURLs.count } }
 
     private let service: FolderIconService
+    private let clipboardReader = ClipboardImageReader()
+    private let pastedImageDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("IconDropPastedImages-\(UUID().uuidString)", isDirectory: true)
+    private var pastedImageURLs = Set<URL>()
     private var previewGeneration = 0
     private var pendingPreviewRefresh: DispatchWorkItem?
 
@@ -43,11 +47,32 @@ final class IconDropViewModel: ObservableObject {
         guard urls.count == 1, let url = urls.first,
               (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
               NSImage(contentsOf: url) != nil else {
-            show("请一次拖入一张图片文件。", error: true)
+            show("请一次提供一张图片文件。", error: true)
             return
         }
         imageURL = url
+        cleanUpUnusedPastedImages()
         refreshPreviews()
+    }
+
+    func pasteImageFromClipboard() {
+        pasteImage(from: .general)
+    }
+
+    func pasteImage(from pasteboard: NSPasteboard) {
+        do {
+            switch try clipboardReader.read(from: pasteboard) {
+            case .file(let url):
+                receiveImages([url])
+            case .image(let image):
+                let url = try clipboardReader.save(image, in: pastedImageDirectory)
+                pastedImageURLs.insert(url)
+                receiveImages([url])
+                cleanUpUnusedPastedImages()
+            }
+        } catch {
+            show(error.localizedDescription, error: true)
+        }
     }
 
     func receiveFolders(_ urls: [URL]) {
@@ -68,6 +93,7 @@ final class IconDropViewModel: ObservableObject {
     func clearImage() {
         imageURL = nil
         imagePreview = nil
+        cleanUpUnusedPastedImages()
         refreshPreviews()
         show("已清除当前图片。")
     }
@@ -98,17 +124,20 @@ final class IconDropViewModel: ObservableObject {
         self.imageURL = nil
         self.imagePreview = nil
         folderURLs = []
+        cleanUpUnusedPastedImages()
         show("已加入 \(count) 个文件夹，可继续拖入下一张图片。")
     }
 
     func removeTask(_ id: UUID) {
         queue.removeAll { $0.id == id }
+        cleanUpUnusedPastedImages()
         preparationFailed = false
         show("任务已移除。")
     }
 
     func clearTasks() {
         queue = []
+        cleanUpUnusedPastedImages()
         preparationFailed = false
         show("任务清单已清空。")
     }
@@ -133,6 +162,7 @@ final class IconDropViewModel: ObservableObject {
             resultIndex += taskResults.count
         }
         queue = failedQueue
+        cleanUpUnusedPastedImages()
         let successCount = results.filter(\.succeeded).count
         let failureCount = results.count - successCount
         if let firstError = results.first(where: { !$0.succeeded })?.error {
@@ -219,5 +249,13 @@ final class IconDropViewModel: ObservableObject {
     private func show(_ text: String, error: Bool = false) {
         feedback = text
         feedbackIsError = error
+    }
+
+    private func cleanUpUnusedPastedImages() {
+        let used = Set(queue.map(\.imageURL)).union(imageURL.map { [$0] } ?? [])
+        for url in pastedImageURLs.filter({ !used.contains($0) }) {
+            try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            pastedImageURLs.remove(url)
+        }
     }
 }

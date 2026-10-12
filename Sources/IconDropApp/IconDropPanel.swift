@@ -31,9 +31,9 @@ struct IconDropPanel: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 38))
                             .foregroundStyle(.tertiary)
-                        Text("拖入图片")
+                        Text("拖入或粘贴图片")
                             .font(.headline)
-                        Text("PNG、JPEG、HEIC 等")
+                        Text("一次一张 · 支持 ⌘V")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -65,13 +65,17 @@ struct IconDropPanel: View {
             .frame(height: 178)
 
             HStack {
+                Button("粘贴图片") { model.pasteImageFromClipboard() }
+                    .keyboardShortcut("v", modifiers: .command)
+                    .buttonStyle(.bordered)
                 Button("清除图片") { model.clearImage() }
                     .disabled(model.imageURL == nil)
+                    .buttonStyle(.plain)
                 Spacer()
                 Button("清除文件夹") { model.clearFolders() }
                     .disabled(model.folderURLs.isEmpty)
+                    .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .font(.caption)
             .foregroundStyle(.secondary)
 

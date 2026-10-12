@@ -13,6 +13,8 @@ A macOS menu bar utility for applying custom icons to folders in batches.
 
 The prototype menu bar panel supports one image and multiple folders per task. Add several tasks to use different images for different folders, preview their normalized sizes, then apply all tasks. Turn on “移除背景” for the current image to use macOS Vision foreground detection before normalizing its size. Each queued task remembers its own background-removal setting. The app can also restore selected folders to their pre-IconDrop icons.
 
+When IconDrop is running, its folder icon appears in the macOS menu bar. Click it to open the panel. In the image area, drag one image, click “粘贴图片”, or press Command-V to paste a copied image file or image content from the clipboard.
+
 With a compatible Xcode toolchain, run `swift test` and `swift run IconDropApp` from this directory. To create a local `.app` bundle with a menu bar only appearance, run `scripts/build-app.sh` and open `build/IconDrop.app`. If the selected Command Line Tools SDK is newer than the Swift compiler, set `ICONDROP_SDK_PATH` to a compatible macOS SDK before running the script.
 
 Backups are stored in the user's Application Support directory and removed after a successful restore. "Restore default" always sets the system icon; use "restore original" to recover the icon from before IconDrop's first edit.
