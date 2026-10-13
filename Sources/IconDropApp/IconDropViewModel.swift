@@ -251,6 +251,11 @@ final class IconDropViewModel: ObservableObject {
         feedbackIsError = error
     }
 
+    func cleanUpTemporaryImages() {
+        try? FileManager.default.removeItem(at: pastedImageDirectory)
+        pastedImageURLs.removeAll()
+    }
+
     private func cleanUpUnusedPastedImages() {
         let used = Set(queue.map(\.imageURL)).union(imageURL.map { [$0] } ?? [])
         for url in pastedImageURLs.filter({ !used.contains($0) }) {

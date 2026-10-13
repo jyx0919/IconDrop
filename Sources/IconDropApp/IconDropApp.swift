@@ -23,6 +23,10 @@ final class IconDropApplicationDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        model.cleanUpTemporaryImages()
+    }
+
     @objc private func togglePanel() {
         guard let button = statusItem?.button else { return }
         if popover.isShown {
