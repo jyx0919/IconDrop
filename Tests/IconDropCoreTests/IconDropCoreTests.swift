@@ -119,6 +119,25 @@ final class IconDropCoreTests: XCTestCase {
         XCTAssertFalse(store.hasBackup(for: folder))
     }
 
+    func testWorkspaceReaderCapturesActualFinderCustomArtwork() throws {
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = temporary.appendingPathComponent("folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        let originalURL = temporary.appendingPathComponent("original.png")
+        try makePNG(at: originalURL, squareSize: 180)
+        let original = try XCTUnwrap(NSImage(contentsOf: originalURL))
+        XCTAssertTrue(NSWorkspace.shared.setIcon(original, forFile: folder.path, options: []))
+
+        let captured = try XCTUnwrap(WorkspaceOriginalIconReader().customIcon(for: folder))
+        let cgImage = try XCTUnwrap(captured.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        let pixel = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        let center = try XCTUnwrap(pixel.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(center.redComponent, center.greenComponent + 0.3)
+    }
+
     func testMissingBackupNeverClearsAnIcon() throws {
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)

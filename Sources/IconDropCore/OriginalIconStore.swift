@@ -11,7 +11,7 @@ public enum OriginalIconError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .cannotReadIconState: "无法读取文件夹原有的图标状态。"
+        case .cannotReadIconState: "无法安全读取文件夹原有的自定义图标；文件夹未被修改。"
         case .cannotEncodeIcon: "无法保存原有的自定义图标。"
         case .cannotSaveBackup: "无法保存原图标备份；文件夹未被修改。"
         case .noBackup: "没有找到这个文件夹的原图标备份。"
@@ -44,7 +44,61 @@ public struct WorkspaceOriginalIconReader: OriginalIconReading {
         guard count >= 10 else { throw OriginalIconError.cannotReadIconState }
         let flags = UInt16(finderInfo[8]) << 8 | UInt16(finderInfo[9])
         guard flags & 0x0400 != 0 else { return nil }
-        return NSWorkspace.shared.icon(forFile: folderURL.path)
+
+        // NSWorkspace can return the generic folder artwork immediately after setIcon.
+        // Finder stores the actual custom image as an icns resource in Icon\r.
+        let forkURL = folderURL.appendingPathComponent("Icon\r")
+            .appendingPathComponent("..namedfork/rsrc")
+        guard let fork = try? Data(contentsOf: forkURL),
+              let iconData = Self.iconData(in: fork),
+              let image = NSImage(data: iconData) else {
+            throw OriginalIconError.cannotReadIconState
+        }
+        return image
+    }
+
+    private static func iconData(in fork: Data) -> Data? {
+        guard let dataOffset = uint32(fork, at: 0),
+              let mapOffset = uint32(fork, at: 4),
+              let dataLength = uint32(fork, at: 8),
+              let mapLength = uint32(fork, at: 12),
+              dataOffset + dataLength <= fork.count,
+              mapLength >= 28, mapOffset + mapLength <= fork.count,
+              let typeListOffset = uint16(fork, at: mapOffset + 24) else { return nil }
+
+        let typeList = mapOffset + typeListOffset
+        guard let typeCountMinusOne = uint16(fork, at: typeList) else { return nil }
+        for typeIndex in 0...typeCountMinusOne {
+            let entry = typeList + 2 + typeIndex * 8
+            guard entry + 8 <= mapOffset + mapLength,
+                  let resourceCountMinusOne = uint16(fork, at: entry + 4),
+                  let referenceOffset = uint16(fork, at: entry + 6) else { return nil }
+            guard fork[entry] == 0x69, fork[entry + 1] == 0x63,
+                  fork[entry + 2] == 0x6e, fork[entry + 3] == 0x73 else { continue }
+
+            for resourceIndex in 0...resourceCountMinusOne {
+                let reference = typeList + referenceOffset + resourceIndex * 12
+                guard reference + 12 <= mapOffset + mapLength,
+                      let attributesAndOffset = uint32(fork, at: reference + 4) else { return nil }
+                let resourceStart = dataOffset + (attributesAndOffset & 0x00ff_ffff)
+                guard let resourceLength = uint32(fork, at: resourceStart),
+                      resourceStart + 4 + resourceLength <= dataOffset + dataLength else { return nil }
+                let payload = fork[(resourceStart + 4)..<(resourceStart + 4 + resourceLength)]
+                if payload.starts(with: Data("icns".utf8)) { return Data(payload) }
+            }
+        }
+        return nil
+    }
+
+    private static func uint16(_ data: Data, at offset: Int) -> Int? {
+        guard offset >= 0, offset + 2 <= data.count else { return nil }
+        return Int(data[offset]) << 8 | Int(data[offset + 1])
+    }
+
+    private static func uint32(_ data: Data, at offset: Int) -> Int? {
+        guard offset >= 0, offset + 4 <= data.count else { return nil }
+        return Int(data[offset]) << 24 | Int(data[offset + 1]) << 16
+            | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
     }
 }
 
