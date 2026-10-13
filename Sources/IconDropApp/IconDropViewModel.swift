@@ -20,6 +20,9 @@ final class IconDropViewModel: ObservableObject {
     @Published private(set) var feedbackIsError = false
     @Published private(set) var isPreparing = false
     @Published private(set) var preparationFailed = false
+    @Published private(set) var isApplying = false
+    @Published private(set) var completedFolderCount = 0
+    @Published private(set) var totalFolderCount = 0
     @Published var contentScale = IconImageProcessor.defaultContentScale {
         didSet { schedulePreviewRefresh() }
     }
@@ -27,8 +30,8 @@ final class IconDropViewModel: ObservableObject {
         didSet { refreshPreviews() }
     }
 
-    var canAddTask: Bool { imageURL != nil && imagePreview != nil && !folderURLs.isEmpty && !isPreparing }
-    var canApply: Bool { !queue.isEmpty && !isPreparing && !preparationFailed }
+    var canAddTask: Bool { imageURL != nil && imagePreview != nil && !folderURLs.isEmpty && !isPreparing && !isApplying }
+    var canApply: Bool { !queue.isEmpty && !isPreparing && !preparationFailed && !isApplying }
     var folderCount: Int { queue.reduce(0) { $0 + $1.folderURLs.count } }
 
     private let service: FolderIconService
@@ -44,6 +47,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func receiveImages(_ urls: [URL]) {
+        guard !isApplying else { return }
         guard urls.count == 1, let url = urls.first,
               (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
               NSImage(contentsOf: url) != nil else {
@@ -60,6 +64,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func pasteImage(from pasteboard: NSPasteboard) {
+        guard !isApplying else { return }
         do {
             switch try clipboardReader.read(from: pasteboard) {
             case .file(let url):
@@ -76,6 +81,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func receiveFolders(_ urls: [URL]) {
+        guard !isApplying else { return }
         guard !urls.isEmpty, urls.allSatisfy({
             (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
         }) else {
@@ -91,6 +97,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func clearImage() {
+        guard !isApplying else { return }
         imageURL = nil
         imagePreview = nil
         cleanUpUnusedPastedImages()
@@ -99,11 +106,13 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func clearFolders() {
+        guard !isApplying else { return }
         folderURLs = []
         show("已清除当前文件夹。")
     }
 
     func addTask() {
+        guard !isApplying else { return }
         guard let imageURL, let imagePreview, !folderURLs.isEmpty else {
             show("先拖入一张图片和至少一个文件夹。", error: true)
             return
@@ -129,6 +138,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func removeTask(_ id: UUID) {
+        guard !isApplying else { return }
         queue.removeAll { $0.id == id }
         cleanUpUnusedPastedImages()
         preparationFailed = false
@@ -136,6 +146,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func clearTasks() {
+        guard !isApplying else { return }
         queue = []
         cleanUpUnusedPastedImages()
         preparationFailed = false
@@ -150,7 +161,28 @@ final class IconDropViewModel: ObservableObject {
         let assignments = queue.map {
             IconAssignment(imageURL: $0.imageURL, folderURLs: $0.folderURLs, removeBackground: $0.removeBackground)
         }
-        let results = service.apply(assignments, contentScale: contentScale)
+        let scale = contentScale
+        let service = self.service
+        isApplying = true
+        completedFolderCount = 0
+        totalFolderCount = folderCount
+        show("正在应用文件夹图标…")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let results = service.apply(assignments, contentScale: scale) { completed, total in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isApplying else { return }
+                    self.completedFolderCount = completed
+                    self.totalFolderCount = total
+                }
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.finishApplying(results)
+            }
+        }
+    }
+
+    private func finishApplying(_ results: [FolderIconResult]) {
         var resultIndex = 0
         var failedQueue: [QueuedIconAssignment] = []
         for var task in queue {
@@ -163,6 +195,8 @@ final class IconDropViewModel: ObservableObject {
         }
         queue = failedQueue
         cleanUpUnusedPastedImages()
+        completedFolderCount = results.count
+        isApplying = false
         let successCount = results.filter(\.succeeded).count
         let failureCount = results.count - successCount
         if let firstError = results.first(where: { !$0.succeeded })?.error {
@@ -173,6 +207,7 @@ final class IconDropViewModel: ObservableObject {
     }
 
     func restoreSelectedFolders() {
+        guard !isApplying else { return }
         guard !folderURLs.isEmpty else {
             show("先在右侧拖入需要恢复的文件夹。", error: true)
             return

@@ -63,6 +63,7 @@ struct IconDropPanel: View {
                 }
             }
             .frame(height: 178)
+            .disabled(model.isApplying)
 
             HStack {
                 Button("粘贴图片") { model.pasteImageFromClipboard() }
@@ -73,17 +74,19 @@ struct IconDropPanel: View {
                     .buttonStyle(.plain)
                 Spacer()
                 Button("清除文件夹") { model.clearFolders() }
-                    .disabled(model.folderURLs.isEmpty)
+                    .disabled(model.folderURLs.isEmpty || model.isApplying)
                     .buttonStyle(.plain)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .disabled(model.isApplying)
 
             HStack(spacing: 16) {
                 Label("图案大小", systemImage: "arrow.up.left.and.arrow.down.right")
                     .font(.subheadline)
                     .frame(width: 100, alignment: .leading)
                 Slider(value: $model.contentScale, in: 0.4...0.95)
+                    .disabled(model.isApplying)
                     .accessibilityLabel("图案大小")
                 Text("\(Int(model.contentScale * 100))%")
                     .font(.system(.caption, design: .monospaced))
@@ -92,6 +95,7 @@ struct IconDropPanel: View {
             }
 
             Toggle("移除背景", isOn: $model.removeBackground)
+                .disabled(model.isApplying)
                 .font(.subheadline)
                 .help("使用 macOS 识别图片主体；此设置随当前图片一起加入任务。")
 
@@ -101,7 +105,7 @@ struct IconDropPanel: View {
                     .buttonStyle(.plain)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .disabled(model.folderURLs.isEmpty)
+                    .disabled(model.folderURLs.isEmpty || model.isApplying)
                 Button("加入任务") { model.addTask() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!model.canAddTask)
@@ -118,6 +122,7 @@ struct IconDropPanel: View {
                 Spacer()
                 if !model.queue.isEmpty {
                     Button("清空") { model.clearTasks() }
+                        .disabled(model.isApplying)
                         .buttonStyle(.plain)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -168,6 +173,7 @@ struct IconDropPanel: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("移除任务")
+                                .disabled(model.isApplying)
                             }
                             .padding(9)
                             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
@@ -176,6 +182,14 @@ struct IconDropPanel: View {
                 }
             }
             .frame(minHeight: 126, maxHeight: 164)
+
+            if model.isApplying {
+                ProgressView(value: Double(model.completedFolderCount), total: Double(model.totalFolderCount))
+                    .accessibilityLabel("应用进度")
+                Text("正在应用 \(model.completedFolderCount)/\(model.totalFolderCount) 个文件夹")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack(spacing: 10) {
                 if let feedback = model.feedback {
@@ -218,6 +232,7 @@ struct IconDropPanel: View {
                 .background(.quaternary, in: Capsule())
             Menu {
                 Button("退出 IconDrop") { NSApplication.shared.terminate(nil) }
+                    .disabled(model.isApplying)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 16))

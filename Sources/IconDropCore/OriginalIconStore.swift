@@ -20,7 +20,7 @@ public enum OriginalIconError: Error, LocalizedError, Equatable {
     }
 }
 
-public protocol OriginalIconReading {
+public protocol OriginalIconReading: Sendable {
     /// Returns nil when the folder has no Finder custom icon.
     func customIcon(for folderURL: URL) throws -> NSImage?
 }
@@ -49,7 +49,7 @@ public struct WorkspaceOriginalIconReader: OriginalIconReading {
 }
 
 /// Saves the state before IconDrop first changes a folder. Backups survive app restarts.
-public struct OriginalIconStore {
+public struct OriginalIconStore: Sendable {
     public let directoryURL: URL
 
     public init(directoryURL: URL? = nil) {

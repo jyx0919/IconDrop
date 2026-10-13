@@ -63,16 +63,19 @@ final class IconDropCoreTests: XCTestCase {
         let writer = RecordingWriter()
         let store = OriginalIconStore(directoryURL: temporary.appendingPathComponent("backups"))
         let service = FolderIconService(writer: writer, originalIconReader: StubOriginalIconReader(), originalIconStore: store)
+        var progress: [(Int, Int)] = []
         let results = service.apply([
             IconAssignment(imageURL: image, folderURLs: [first, second]),
             IconAssignment(imageURL: image, folderURLs: [first]),
-        ])
+        ], onProgress: { progress.append(($0, $1)) })
 
         XCTAssertEqual(results.count, 3)
         XCTAssertTrue(results[0].succeeded)
         XCTAssertTrue(results[1].succeeded)
         XCTAssertEqual(results[2].error as? FolderIconError, .duplicateFolder)
         XCTAssertEqual(writer.calls, [first, second])
+        XCTAssertEqual(progress.map { $0.0 }, [1, 2, 3])
+        XCTAssertEqual(progress.map { $0.1 }, [3, 3, 3])
         XCTAssertTrue(store.hasBackup(for: first))
         XCTAssertTrue(store.hasBackup(for: second))
     }
@@ -183,7 +186,7 @@ final class IconDropCoreTests: XCTestCase {
     }
 }
 
-private final class RecordingWriter: FolderIconWriting {
+private final class RecordingWriter: FolderIconWriting, @unchecked Sendable {
     var calls: [URL] = []
     var images: [NSImage?] = []
     var nilIconCalls = 0
@@ -196,7 +199,7 @@ private final class RecordingWriter: FolderIconWriting {
     }
 }
 
-private final class StubOriginalIconReader: OriginalIconReading {
+private final class StubOriginalIconReader: OriginalIconReading, @unchecked Sendable {
     let icon: NSImage?
     var readCount = 0
 

@@ -1,6 +1,6 @@
 import AppKit
 
-public struct IconAssignment {
+public struct IconAssignment: Sendable {
     public let imageURL: URL
     public let folderURLs: [URL]
     public let removeBackground: Bool
@@ -34,7 +34,7 @@ public struct FolderIconResult {
     public var succeeded: Bool { error == nil }
 }
 
-public protocol FolderIconWriting {
+public protocol FolderIconWriting: Sendable {
     func setIcon(_ image: NSImage?, for folderURL: URL) -> Bool
 }
 
@@ -48,7 +48,7 @@ public struct WorkspaceFolderIconWriter: FolderIconWriting {
 
 /// Applies assignments in order. Each folder can appear only once in a batch.
 /// A failed folder does not prevent the remaining folders from being processed.
-public struct FolderIconService {
+public struct FolderIconService: Sendable {
     private let processor: IconImageProcessor
     private let writer: any FolderIconWriting
     private let originalIconReader: any OriginalIconReading
@@ -66,9 +66,14 @@ public struct FolderIconService {
         self.originalIconStore = originalIconStore
     }
 
-    public func apply(_ assignments: [IconAssignment], contentScale: Double = IconImageProcessor.defaultContentScale) -> [FolderIconResult] {
+    public func apply(
+        _ assignments: [IconAssignment],
+        contentScale: Double = IconImageProcessor.defaultContentScale,
+        onProgress: ((Int, Int) -> Void)? = nil
+    ) -> [FolderIconResult] {
         var seen = Set<URL>()
         var results: [FolderIconResult] = []
+        let totalCount = assignments.reduce(0) { $0 + $1.folderURLs.count }
 
         for assignment in assignments {
             let icon = Result {
@@ -99,6 +104,7 @@ public struct FolderIconService {
                     }
                 }
                 results.append(FolderIconResult(folderURL: folder, error: error))
+                onProgress?(results.count, totalCount)
             }
         }
         return results

@@ -25,7 +25,7 @@ public enum IconImageError: Error, LocalizedError {
 }
 
 /// Produces a square, transparent icon with consistent visible-content size.
-public struct IconImageProcessor {
+public struct IconImageProcessor: Sendable {
     public static let canvasSize = 512
     public static let defaultContentScale = 0.78
 
