@@ -1,0 +1,24 @@
+name: macOS checks
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+      - name: Show Swift toolchain
+        run: swift --version
+      - name: Run core tests
+        run: swift test
+      - name: Build menu bar tool
+        run: bash scripts/build-app.sh
