@@ -4,6 +4,10 @@
 
 IconDrop is a small macOS menu bar utility for applying custom icons to folders in batches. This repository contains source code rather than a ready-to-open app. Follow the steps below to build and run it on your Mac.
 
+## Preview
+
+<img src="docs/images/icondrop-menu.png" alt="IconDrop menu bar icon and folder icon editing panel" width="460">
+
 ## What it does
 
 - Assign one image to several folders, or give different folders different images by adding multiple tasks.
@@ -40,6 +44,11 @@ If you prefer Git, use `git clone https://github.com/jyx0919/IconDrop.git` and `
 
 Click outside the panel to close it, or click the menu bar icon again. Use the panel's `更多选项` (more options) menu to quit IconDrop.
 
+### Examples
+
+- **One image for several folders:** Drag one image into the left area and `Work`, `Photos`, and `Notes` into the right area. Adjust the preview, click `加入任务`, then `应用全部`. All three folders receive the same icon.
+- **A different image for each folder:** Pair image A with `Work` and click `加入任务`. Then pair image B with `Photos` and add that task. Click `应用全部` once to apply both icons. Each task keeps its own image size and background removal setting.
+
 ### Restore an original icon
 
 Drag the folders to restore into the **right** area and click `恢复所选原图标`. IconDrop restores the custom icon each folder had before its first IconDrop edit, or the system default folder icon if it had no custom icon. A backup is required; if it is missing or damaged, the app reports an error instead of silently replacing the icon.
@@ -57,3 +66,7 @@ macOS can hide new menu bar icons when the right side is full, especially on Mac
 3. Hold **Command (⌘)** and drag the IconDrop icon toward the right side. Re-enable the other items if there is room.
 
 Apple's [menu bar guide](https://support.apple.com/en-gb/guide/mac-help/mchlp1446/26/mac/26) explains how to rearrange status icons.
+
+## License
+
+IconDrop is released under the [MIT License](LICENSE).
