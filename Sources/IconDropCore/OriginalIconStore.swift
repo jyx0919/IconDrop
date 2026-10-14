@@ -8,6 +8,7 @@ public enum OriginalIconError: Error, LocalizedError, Equatable {
     case cannotSaveBackup
     case noBackup
     case invalidBackup
+    case unverifiedLegacyBackup
 
     public var errorDescription: String? {
         switch self {
@@ -16,6 +17,7 @@ public enum OriginalIconError: Error, LocalizedError, Equatable {
         case .cannotSaveBackup: "无法保存原图标备份；文件夹未被修改。"
         case .noBackup: "没有找到这个文件夹的原图标备份。"
         case .invalidBackup: "原图标备份已损坏。"
+        case .unverifiedLegacyBackup: "旧版自定义图标备份可能不准确；已跳过此文件夹并保留备份。"
         }
     }
 }
@@ -104,6 +106,7 @@ public struct WorkspaceOriginalIconReader: OriginalIconReading {
 
 /// Saves the state before IconDrop first changes a folder. Backups survive app restarts.
 public struct OriginalIconStore: Sendable {
+    private static let currentBackupFormatVersion = 2
     public let directoryURL: URL
 
     public init(directoryURL: URL? = nil) {
@@ -135,7 +138,7 @@ public struct OriginalIconStore: Sendable {
             png = nil
         }
 
-        let backup = Backup(folderPath: canonicalPath(for: folderURL), originalIconPNG: png)
+        let backup = Backup(formatVersion: Self.currentBackupFormatVersion, folderPath: canonicalPath(for: folderURL), originalIconPNG: png)
         do {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(backup)
@@ -151,6 +154,11 @@ public struct OriginalIconStore: Sendable {
         do {
             let backup = try JSONDecoder().decode(Backup.self, from: Data(contentsOf: destination))
             guard backup.folderPath == canonicalPath(for: folderURL) else { throw OriginalIconError.invalidBackup }
+            // An old default-icon backup is unambiguous; old custom artwork may be generic folder art.
+            guard backup.formatVersion == Self.currentBackupFormatVersion
+                    || (backup.formatVersion == nil && backup.originalIconPNG == nil) else {
+                throw OriginalIconError.unverifiedLegacyBackup
+            }
             if let png = backup.originalIconPNG {
                 guard let image = NSImage(data: png) else { throw OriginalIconError.invalidBackup }
                 return image
@@ -179,6 +187,7 @@ public struct OriginalIconStore: Sendable {
 }
 
 private struct Backup: Codable {
+    let formatVersion: Int?
     let folderPath: String
     let originalIconPNG: Data?
 }

@@ -207,6 +207,11 @@ struct IconDropPanel: View {
         .padding(20)
         .frame(width: 520)
         .background(.ultraThinMaterial)
+        .alert("旧版自定义图标备份", isPresented: $model.showLegacyBackupAlert) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text("旧版备份可能保存了错误的图案。IconDrop 已跳过对应文件夹，当前图标和备份都未更改。备份位置：~/Library/Application Support/IconDrop/OriginalIcons")
+        }
     }
 
     private var header: some View {

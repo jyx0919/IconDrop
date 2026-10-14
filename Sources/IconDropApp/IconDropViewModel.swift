@@ -23,6 +23,7 @@ final class IconDropViewModel: ObservableObject {
     @Published private(set) var isApplying = false
     @Published private(set) var completedFolderCount = 0
     @Published private(set) var totalFolderCount = 0
+    @Published var showLegacyBackupAlert = false
     @Published var contentScale = IconImageProcessor.defaultContentScale {
         didSet { schedulePreviewRefresh() }
     }
@@ -199,6 +200,9 @@ final class IconDropViewModel: ObservableObject {
         isApplying = false
         let successCount = results.filter(\.succeeded).count
         let failureCount = results.count - successCount
+        if results.contains(where: { $0.error as? OriginalIconError == .unverifiedLegacyBackup }) {
+            showLegacyBackupAlert = true
+        }
         if let firstError = results.first(where: { !$0.succeeded })?.error {
             show("已应用 \(successCount) 个，失败 \(failureCount) 个：\(firstError.localizedDescription)", error: true)
         } else {
@@ -214,6 +218,9 @@ final class IconDropViewModel: ObservableObject {
         }
         let results = service.restoreOriginalIcon(for: folderURLs)
         let successCount = results.filter(\.succeeded).count
+        if results.contains(where: { $0.error as? OriginalIconError == .unverifiedLegacyBackup }) {
+            showLegacyBackupAlert = true
+        }
         if let firstError = results.first(where: { !$0.succeeded })?.error {
             show("已恢复 \(successCount) 个；\(firstError.localizedDescription)", error: true)
         } else {

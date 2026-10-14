@@ -46,6 +46,8 @@ Drag the folders to restore into the **right** area and click `恢复所选原�
 
 Backups are stored in `~/Library/Application Support/IconDrop/OriginalIcons` and are removed after a successful restore. The core library also exposes `restoreDefaultIcon(for:)` to set the system default icon, but the current menu bar panel does not have a separate button for that operation.
 
+Custom-icon backups created by earlier versions may be inaccurate. IconDrop skips affected folders and keeps those backups without changing the current icon. It cannot reconstruct an older, incorrect backup automatically. Older backups that recorded the system default icon can still be restored.
+
 ## Menu bar icon not visible
 
 macOS can hide new menu bar icons when the right side is full, especially on Macs with a camera notch. The app may be running even though its icon is not visible.

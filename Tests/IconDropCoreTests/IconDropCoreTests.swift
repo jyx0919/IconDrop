@@ -138,6 +138,44 @@ final class IconDropCoreTests: XCTestCase {
         XCTAssertGreaterThan(center.redComponent, center.greenComponent + 0.3)
     }
 
+    func testLegacyCustomBackupBlocksRestoreAndFurtherEdits() throws {
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let folder = temporary.appendingPathComponent("folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        let imageURL = temporary.appendingPathComponent("image.png")
+        try makePNG(at: imageURL, squareSize: 100)
+        let image = try XCTUnwrap(NSImage(contentsOf: imageURL))
+        let store = OriginalIconStore(directoryURL: temporary.appendingPathComponent("backups"))
+        try store.saveIfMissing(image, for: folder)
+        let backupURL = try removeVersionFromBackup(in: store)
+        let originalBackup = try Data(contentsOf: backupURL)
+        let writer = RecordingWriter()
+        let service = FolderIconService(writer: writer, originalIconReader: StubOriginalIconReader(), originalIconStore: store)
+
+        XCTAssertEqual(service.restoreOriginalIcon(for: [folder])[0].error as? OriginalIconError, .unverifiedLegacyBackup)
+        XCTAssertEqual(service.apply([IconAssignment(imageURL: imageURL, folderURLs: [folder])])[0].error as? OriginalIconError, .unverifiedLegacyBackup)
+        XCTAssertTrue(writer.calls.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: backupURL), originalBackup)
+    }
+
+    func testLegacyDefaultBackupCanStillBeRestored() throws {
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+
+        let store = OriginalIconStore(directoryURL: temporary.appendingPathComponent("backups"))
+        try store.saveIfMissing(nil, for: temporary)
+        _ = try removeVersionFromBackup(in: store)
+        let writer = RecordingWriter()
+        let service = FolderIconService(writer: writer, originalIconReader: StubOriginalIconReader(), originalIconStore: store)
+
+        XCTAssertTrue(service.restoreOriginalIcon(for: [temporary])[0].succeeded)
+        XCTAssertEqual(writer.nilIconCalls, 1)
+        XCTAssertFalse(store.hasBackup(for: temporary))
+    }
+
     func testMissingBackupNeverClearsAnIcon() throws {
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
@@ -168,6 +206,16 @@ final class IconDropCoreTests: XCTestCase {
         let second = service.apply([IconAssignment(imageURL: image, folderURLs: [folder])])[0]
         XCTAssertEqual(second.error as? OriginalIconError, .invalidBackup)
         XCTAssertEqual(writer.calls.count, 1)
+    }
+
+    private func removeVersionFromBackup(in store: OriginalIconStore) throws -> URL {
+        let backupURL = try XCTUnwrap(FileManager.default.contentsOfDirectory(
+            at: store.directoryURL, includingPropertiesForKeys: nil
+        ).first)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: backupURL)) as? [String: Any])
+        XCTAssertEqual(json.removeValue(forKey: "formatVersion") as? Int, 2)
+        try JSONSerialization.data(withJSONObject: json).write(to: backupURL)
+        return backupURL
     }
 
     private func makePNG(at url: URL, squareSize: Int) throws {

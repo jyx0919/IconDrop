@@ -46,6 +46,8 @@ IconDrop 是一款用于批量修改 macOS 文件夹图标的菜单栏小工具�
 
 备份保存在 `~/Library/Application Support/IconDrop/OriginalIcons`，成功恢复后会删除相应备份。底层库还提供 `restoreDefaultIcon(for:)`，可直接设回系统默认图标；当前菜单栏界面没有这项操作的独立按钮。
 
+旧版生成的**自定义图标备份**可能不准确。遇到这类备份时，IconDrop 会跳过该文件夹并保留备份，不会覆盖当前图标；旧版备份无法自动修复。旧版生成的系统默认图标备份仍可正常恢复。
+
 ## 菜单栏里找不到 IconDrop 图标
 
 菜单栏右侧空间不足时，macOS 可能隐藏新加入的图标，带摄像头缺口的 Mac 尤其容易遇到。此时 IconDrop 可能仍在运行。
